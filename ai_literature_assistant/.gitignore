@@ -44,6 +44,9 @@ wheels/
 *.sqlite
 *.sqlite3
 
+# ChromaDB
+data/chroma_db/
+
 # Logs
 *.log
 logs/

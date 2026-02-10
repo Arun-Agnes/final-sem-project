@@ -1,223 +1,360 @@
+# app.py - AI Research Literature Assistant (Updated with Proper Sidebar Navigation)
+"""
+AI Research Literature Assistant
+Updated UI with Streamlit-native sidebar navigation
+"""
+
 import streamlit as st
 import os
+from datetime import datetime
+import uuid
+
+# Third-party imports
+import chromadb
+
+# Local imports
 from ingestion.pdf_loader import extract_text_from_pdf
 from ingestion.preprocess import ResearchPaperChunker
-from ingestion.embed_store import store_documents_enhanced
+from ingestion.embed_store import store_documents_enhanced, CHROMA_DIR
 from rag.pipeline import RAGPipeline
+from citation_generator import IEEECitationGenerator
 
+# Utility imports
+from utils.document_manager import DocumentManager
+from utils.document_selector import DocumentSelector
+from utils.metrics_tracker import MetricsTracker, ConfidenceCalculator
+from utils.ui_components import SearchModeSelector
+from utils.export_tools import ChatExporter
+from utils.comparison_tools import DocumentComparator
+
+# ==================== CONFIGURATION ====================
 st.set_page_config(
     page_title="AI Research Literature Assistant",
     page_icon="📚",
     layout="wide"
 )
 
-# Initialize RAG pipeline (only when needed)
-@st.cache_resource(show_spinner=False)
-def get_pipeline():
+# ==================== CSS STYLING ====================
+def load_css():
+    """Load custom CSS styles"""
     try:
-        return RAGPipeline()
-    except Exception:
-        # Collection doesn't exist yet - will be created on first upload
-        return None
+        with open("static/style.css", "r") as f:
+            css = f.read()
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        # If CSS file is not found, continue without custom styling
+        pass
 
-# Show loading state during initialization
-if 'initialized' not in st.session_state:
-    with st.spinner("🔄 Initializing system..."):
-        pipeline = get_pipeline()
-        st.session_state.initialized = True
-else:
-    pipeline = get_pipeline()
+# Load custom CSS
+load_css()
 
-# Main UI
-st.title("📚 AI Research Literature Assistant")
+# ==================== SESSION INITIALIZATION ====================
+if 'session_id' not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())[:8]
 
-st.sidebar.header("📄 Upload Research Papers")
-uploaded_files = st.sidebar.file_uploader(
-    "Upload one or more PDF files",
-    type=["pdf"],
-    accept_multiple_files=True,
-    help="Upload research papers to analyze"
-)
-
-# Track processed files to avoid reprocessing
-if 'processed_files' not in st.session_state:
-    st.session_state.processed_files = set()
-
-if uploaded_files:
-    # Get list of new files that haven't been processed
-    current_files = {f.name for f in uploaded_files}
-    new_files = [f for f in uploaded_files if f.name not in st.session_state.processed_files]
-    
-    if new_files:
-        chunker = ResearchPaperChunker(chunk_size=1000, overlap=150)
-        
-        progress_bar = st.sidebar.progress(0)
-        status_text = st.sidebar.empty()
-        percentage_text = st.sidebar.empty()
-        
-        total_files = len(new_files)
-        
-        for idx, uploaded in enumerate(new_files):
-            current_file_num = idx + 1
-            progress_percentage = int((current_file_num / total_files) * 100)
-            
-            # Update progress bar and percentage
-            progress_bar.progress(current_file_num / total_files)
-            percentage_text.markdown(f"**Progress: {progress_percentage}%** ({current_file_num}/{total_files} files)")
-            status_text.text(f"📖 Processing {uploaded.name}...")
-            
-            try:
-                # Step 1: Reading PDF
-                status_text.text(f"📖 [1/4] Reading {uploaded.name}...")
-                raw_bytes = uploaded.read()
-                
-                # Step 2: Extracting text
-                status_text.text(f"📄 [2/4] Extracting text from {uploaded.name}...")
-                raw_text = extract_text_from_pdf(raw_bytes)
-                
-                paper_id = uploaded.name.replace('.pdf', '')
-                
-                # Step 3: Extracting metadata
-                status_text.text(f"🔍 [3/4] Analyzing metadata for {uploaded.name}...")
-                metadata = chunker.extract_metadata(raw_text)
-                extracted_title = metadata.title if metadata.title else "No title detected"
-                
-                chunks = chunker.chunk_text(raw_text, paper_id=paper_id)
-                
-                # Step 4: Storing in database
-                status_text.text(f"💾 [4/4] Storing {uploaded.name} in database...")
-                chunk_ids = [f"{paper_id}_chunk_{i:04d}" for i in range(len(chunks))]
-                
-                store_documents_enhanced(
-                    chunks=chunks,
-                    ids=chunk_ids,
-                    collection_name="research_papers"
-                )
-                
-                # Mark as processed and show extracted title
-                st.session_state.processed_files.add(uploaded.name)
-                st.sidebar.success(f"✅ {uploaded.name}")
-                st.sidebar.info(f"📝 Title: {extracted_title[:100]}...")
-            except Exception as e:
-                st.sidebar.error(f"❌ {uploaded.name}: {str(e)[:50]}")
-        
-        # Final completion message
-        percentage_text.markdown(f"**✨ Complete: 100%** ({total_files}/{total_files} files)")
-        status_text.text("✨ All documents processed successfully!")
-        progress_bar.progress(1.0)
-        
-        # Clear progress indicators after 2 seconds worth of display
-        import time
-        time.sleep(0.5)
-        progress_bar.empty()
-        status_text.empty()
-        percentage_text.empty()
-        # Reinitialize pipeline after new documents
-        st.cache_resource.clear()
-        st.rerun()
-    else:
-        # Show already processed files
-        st.sidebar.info(f"✅ {len(current_files)} file(s) already indexed")
-
-st.subheader("💬 Ask Questions")
-
-# Initialize session state for conversation history
 if 'conversation' not in st.session_state:
     st.session_state.conversation = []
 
-# Show status message if no documents indexed
-if pipeline is None:
-    st.info("👆 Upload PDF files in the sidebar to get started!")
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = set()
 
-# Display conversation history
-for idx, qa in enumerate(st.session_state.conversation):
-    st.markdown(f"### ❓ Question {idx + 1}")
-    st.write(qa['question'])
-    st.markdown(f"### 💡 Answer")
-    st.write(qa['answer'])
-    
-    if qa.get('sources') and qa.get('show_sources'):
-        with st.expander("📚 Source Citations"):
-            for i, source in enumerate(qa['sources'], 1):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**Source {i}:** {source['id']}")
-                with col2:
-                    st.caption(f"Similarity: {source['similarity']}")
+if 'selected_documents' not in st.session_state:
+    st.session_state.selected_documents = []
+
+if 'doc_manager' not in st.session_state:
+    st.session_state.doc_manager = DocumentManager()
+
+if 'search_mode' not in st.session_state:
+    st.session_state.search_mode = "semantic"
+
+if 'alpha' not in st.session_state:
+    st.session_state.alpha = 0.7
+
+if 'show_sources' not in st.session_state:
+    st.session_state.show_sources = True
+
+if 'current_tab' not in st.session_state:
+    st.session_state.current_tab = "chat"
+
+# ==================== HELPER FUNCTIONS ====================
+
+def process_uploaded_files(uploaded_files) -> bool:
+    try:
+        all_chunks = []
+        all_metadata = []
+        
+        for uploaded_file in uploaded_files:
+            if uploaded_file.name in st.session_state.uploaded_files:
+                continue
                 
-                if source.get("metadata"):
-                    meta = source["metadata"]
-                    st.caption(f"📄 {meta.get('paper_id', 'unknown')} | "
-                             f"Section: {meta.get('section', 'unknown')}")
-                
-                with st.container():
-                    st.text(source['content_preview'])
-                st.divider()
-    
-    st.markdown("---")
+            paper_data = {
+                'title': uploaded_file.name,
+                'authors': [],
+                'abstract': '',
+                'content': extract_text_from_pdf(uploaded_file.read())
+            }
+            
+            chunker = ResearchPaperChunker()
+            chunks = chunker.chunk_document(paper_data)
+            
+            metadata = {
+                'title': paper_data.get('title', uploaded_file.name),
+                'authors': paper_data.get('authors', []),
+                'abstract': paper_data.get('abstract', ''),
+                'file_name': uploaded_file.name,
+                'upload_time': datetime.now().isoformat(),
+                'chunk_count': len(chunks)
+            }
+            
+            all_chunks.extend(chunks)
+            all_metadata.append(metadata)
+            st.session_state.uploaded_files.add(uploaded_file.name)
+        
+        if all_chunks:
+            store_documents_enhanced(all_chunks, all_metadata)
+            return True
+            
+    except Exception as e:
+        st.error(f"Error processing files: {str(e)}")
+        return False
 
-# Input for new question using form to enable Enter key submission
-with st.form(key=f"query_form_{len(st.session_state.conversation)}", clear_on_submit=True):
-    question = st.text_input("Enter your question", placeholder="e.g., What are the main findings?")
-    
-    # Add a checkbox for showing sources
-    show_sources = st.checkbox("Show source citations", value=False)
-    
-    # Submit button - form will also submit on Enter key
-    submit_button = st.form_submit_button("🔍 Get Answer", type="primary")
 
-if submit_button and question:
-    if pipeline is None:
-        st.warning("⚠️ Please upload PDF files first.")
+def render_chat_message(qa: dict):
+    with st.chat_message(qa["role"], avatar="🤖" if qa["role"] == "assistant" else "👤"):
+        st.markdown(qa["content"])
+        
+        if st.session_state.show_sources and qa.get("sources"):
+            with st.expander("Sources"):
+                for i, source in enumerate(qa["sources"][:3]):
+                    st.markdown(f"**Source {i+1}:** {source.get('title', 'Unknown')}")
+                    st.markdown(f"- Page {source.get('page', 'N/A')}")
+                    st.markdown(f"- Relevance: {source.get('relevance_score', 'N/A'):.2f}")
+
+
+# ==================== CUSTOM COLLAPSIBLE SIDEBAR ====================
+
+# ==================== STREAMLIT-NATIVE COLLAPSIBLE SIDEBAR ====================
+if 'sidebar_collapsed' not in st.session_state:
+    st.session_state.sidebar_collapsed = False
+
+sidebar_width = 60 if st.session_state.sidebar_collapsed else 220
+toggle_icon = '➡️' if st.session_state.sidebar_collapsed else '⬅️'
+
+st.markdown(f"""
+    <style>
+    .custom-sidebar {{
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        width: {sidebar_width}px;
+        background: rgba(255,255,255,0.05);
+        border-right: 1px solid rgba(255,255,255,0.1);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: width 0.2s;
+    }}
+    .main-content {{
+        margin-left: {sidebar_width}px !important;
+        transition: margin-left 0.2s;
+    }}
+    .sidebar-label {{
+        display: {'none' if st.session_state.sidebar_collapsed else 'inline'};
+        margin-left: 0.5rem;
+        font-size: 1rem;
+    }}
+    .sidebar-btn {{
+        width: 90%;
+        margin-bottom: 1rem;
+        padding: 0.7rem 0;
+        border: none;
+        background: transparent;
+        color: #374151;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        cursor: pointer;
+        border-radius: 6px;
+        justify-content: {'center' if st.session_state.sidebar_collapsed else 'flex-start'};
+    }}
+    .sidebar-clear-btn {{
+        width: 90%;
+        margin-bottom: 1rem;
+        padding: 0.7rem 0;
+        border: none;
+        background: #6B7280;
+        color: white;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        cursor: pointer;
+        border-radius: 6px;
+        justify-content: {'center' if st.session_state.sidebar_collapsed else 'flex-start'};
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+import streamlit.components.v1 as components
+with st.container():
+    # Toggle button
+    if st.button(toggle_icon, key="sidebar-toggle-btn"):
+        st.session_state.sidebar_collapsed = not st.session_state.sidebar_collapsed
+    st.markdown(f"""
+        <div class="custom-sidebar">
+            <div style='width:100%;text-align:center;margin-bottom:2rem;margin-top:2.5rem;'>
+                <span style='font-size:2rem;'>📚</span>
+                <span class="sidebar-label" style='font-weight:600;font-size:1.1rem;color:#6B7280;'>Research Assistant</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    # Navigation buttons
+    if st.button("💬 Chat", key="nav-chat", help="Chat", use_container_width=True):
+        st.session_state.current_tab = "chat"
+    if st.button("📄 Documents", key="nav-docs", help="Documents", use_container_width=True):
+        st.session_state.current_tab = "documents"
+    if st.button("🔍 Compare", key="nav-compare", help="Compare", use_container_width=True):
+        st.session_state.current_tab = "compare"
+    if st.button("⬇ Export", key="nav-export", help="Export", use_container_width=True):
+        st.session_state.current_tab = "export"
+    st.markdown("<hr style='margin:2rem 0;border:0;border-top:1px solid #eee;'>", unsafe_allow_html=True)
+    if st.button("🧹 Clear Session", key="nav-clear", help="Clear Session", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+
+# ==================== MAIN HEADER ====================
+
+st.title("AI Research Literature Assistant")
+st.caption("Intelligent document analysis powered by RAG")
+
+# ==================== CHAT TAB ====================
+
+if st.session_state.current_tab == "chat":
+
+    if st.session_state.doc_manager.get_document_count() == 0:
+        uploaded_files = st.file_uploader(
+            "Upload Research PDFs",
+            type=["pdf"],
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files:
+            if process_uploaded_files(uploaded_files):
+                st.success("Documents processed successfully!")
+                st.rerun()
+    
     else:
-        with st.spinner("🤔 Analyzing your documents..."):
-            try:
-                response = pipeline.query(
-                    question=question,
-                    n_retrieve=5,
-                    include_sources=show_sources,
-                    generate_response=True
+        with st.expander("Search Settings"):
+            search_mode, alpha = SearchModeSelector.show()
+            st.session_state.search_mode = search_mode
+            st.session_state.alpha = alpha
+            show_sources = st.checkbox("Show source citations", value=st.session_state.show_sources)
+            st.session_state.show_sources = show_sources
+
+        for qa in st.session_state.conversation:
+            render_chat_message(qa)
+
+        user_query = st.chat_input("Ask a question about your documents...")
+        
+        if user_query:
+            pipeline = get_pipeline()
+            
+            if pipeline:
+                result = pipeline.query(
+                    user_query,
+                    search_mode=st.session_state.search_mode,
+                    alpha=st.session_state.alpha
                 )
                 
-                if response.get("success"):
-                    # Add to conversation history
-                    st.session_state.conversation.append({
-                        'question': question,
-                        'answer': response["answer"],
-                        'sources': response.get("sources", []),
-                        'show_sources': show_sources
-                    })
-                    st.rerun()
-                else:
-                    st.error(f"❌ {response.get('error', 'Unknown error')}")
-                    
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.session_state.conversation.append({"role": "user", "content": user_query})
+                st.session_state.conversation.append({
+                    "role": "assistant",
+                    "content": result.get('response', ''),
+                    "sources": result.get('sources', [])
+                })
+                
+                st.rerun()
 
-# Add buttons for clearing conversation and database
-col1, col2 = st.columns(2)
+# ==================== DOCUMENTS TAB ====================
 
-with col1:
+elif st.session_state.current_tab == "documents":
+
+    st.subheader("Document Library")
+
+    if st.session_state.doc_manager.get_document_count() > 0:
+        docs = st.session_state.doc_manager.get_all_documents()
+        
+        for doc in docs:
+            with st.expander(doc.get('title', 'Unknown')):
+                st.write("Authors:", ', '.join(doc.get('authors', [])))
+                st.write("Uploaded:", doc.get('upload_time'))
+                st.write("Chunks:", doc.get('chunk_count'))
+                st.write("File:", doc.get('file_name'))
+    else:
+        st.info("No documents uploaded yet")
+
+# ==================== COMPARE TAB ====================
+
+elif st.session_state.current_tab == "compare":
+
+    st.subheader("Compare Research Papers")
+
+    if st.session_state.doc_manager.get_document_count() > 1:
+        doc_names = st.session_state.doc_manager.get_document_names()
+        
+        selected_docs = st.multiselect("Select papers:", doc_names)
+        question = st.text_input("Comparison question:")
+        
+        if st.button("Compare"):
+            st.info("Comparison engine will run here.")
+    else:
+        st.info("Upload at least 2 documents to compare")
+
+# ==================== EXPORT TAB ====================
+
+elif st.session_state.current_tab == "export":
+
+    st.subheader("Export Chat History")
+
     if st.session_state.conversation:
-        if st.button("🗑️ Clear Conversation"):
-            st.session_state.conversation = []
-            st.rerun()
-
-with col2:
-    if st.button("🔄 Clear Database & Re-index"):
-        try:
-            # Clear the collection
-            from ingestion.embed_store import create_client
-            client = create_client()
-            try:
-                client.delete_collection("research_papers")
-                st.success("✅ Database cleared! Please re-upload your PDFs.")
-            except:
-                st.info("No database to clear.")
+        exporter = ChatExporter()
+        
+        format_type = st.selectbox("Format", ["JSON", "CSV", "TXT"])
+        
+        if st.button("Export"):
+            path = exporter.export_chat(
+                st.session_state.conversation,
+                format_type.lower(),
+                st.session_state.session_id
+            )
             
-            # Clear processed files
-            st.session_state.processed_files = set()
-            st.cache_resource.clear()
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error clearing database: {str(e)}")
+            st.success("Export ready")
+            
+            with open(path, 'r') as f:
+                st.download_button(
+                    "Download File",
+                    f.read(),
+                    file_name=f"chat_export.{format_type.lower()}"
+                )
+    else:
+        st.info("No chat history to export")
+
+# ==================== PIPELINE ====================
+
+@st.cache_resource
+def get_pipeline():
+    try:
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = client.get_collection("research_papers")
+        
+        if collection.count() == 0:
+            return None
+        
+        pipeline = RAGPipeline()
+        pipeline.initialize()
+        return pipeline
+    except Exception:
+        return None

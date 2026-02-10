@@ -1,0 +1,7 @@
+[theme]
+# hsl(250 40% 98%) - user's requested background (no white)
+primaryColor = "#1E40AF"
+backgroundColor = "hsl(250, 40%, 98%)"
+secondaryBackgroundColor = "hsl(250, 40%, 98%)"
+textColor = "#0F172A"
+font = "sans serif"

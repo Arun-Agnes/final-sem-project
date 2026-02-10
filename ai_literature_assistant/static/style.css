@@ -1,0 +1,844 @@
+/* AI Literature Assistant - Complete CSS Styles */
+
+/* Hide Streamlit Toolbar and Header, but keep sidebar toggle visible */
+
+/* Hide toolbar and menu items */
+[data-testid="stToolbar"],
+.stAppToolbar,
+.stToolbarActions,
+.stAppDeployButton,
+#MainMenu {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Hide the main header but NOT the sidebar collapse button */
+[data-testid="stHeader"] > div:not([data-testid="collapsedControl"]),
+.stAppHeader > div:not([data-testid="collapsedControl"]) {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Ensure sidebar collapse button is ALWAYS visible */
+[data-testid="collapsedControl"],
+[data-testid="collapsedControl"] button,
+button[kind="header"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    position: relative !important;
+}
+
+/* Style the collapse button */
+[data-testid="collapsedControl"] button,
+button[kind="header"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0.5rem !important;
+    cursor: pointer !important;
+    color: var(--primary-color) !important;
+}
+
+[data-testid="collapsedControl"] button:hover,
+button[kind="header"]:hover {
+    background: rgba(107, 114, 128, 0.1) !important;
+    border-radius: 4px !important;
+}
+
+/* Make sure the SVG icon is visible */
+[data-testid="collapsedControl"] svg,
+button[kind="header"] svg {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: var(--primary-color) !important;
+    fill: var(--primary-color) !important;
+    width: 24px !important;
+    height: 24px !important;
+}
+
+/* Force sidebar to stay visible when open - FIX FOR HIDDEN SIDEBAR */
+[data-testid="stSidebar"],
+.st-emotion-cache-1ie4j6a,
+section[data-testid="stSidebar"] > div:first-child {
+    transform: translateX(0px) !important;
+    min-width: 300px !important;
+    max-width: 300px !important;
+    width: 300px !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Sidebar collapsed state - allow it to hide properly */
+[data-testid="stSidebar"][data-collapsed="true"],
+.st-emotion-cache-1ie4j6a[data-collapsed="true"] {
+    transform: translateX(-300px) !important;
+    min-width: 0px !important;
+    max-width: 0px !important;
+}
+
+/* Override Streamlit's emotion cache classes for sidebar */
+.st-emotion-cache-1ie4j6a {
+    position: relative !important;
+    top: 0px !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #bbb !important;
+    color-scheme: dark !important;
+    z-index: 999991 !important;
+    transition: transform 300ms, min-width 300ms, max-width 300ms !important;
+}
+
+/* Ensure sidebar content is visible */
+[data-testid="stSidebarContent"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* CSS Variables */
+:root {
+    --primary-color: #6B7280;
+    --secondary-color: #9CA3AF;
+    --text-color: #374151;
+    --muted-text: #64748B;
+    --success-color: #16A34A;
+    --warning-color: #F59E0B;
+    --danger-color: #DC2626;
+    --hover-bg: #EFF6FF;
+    --bg-100: 0;
+    --bg-saturation: 0%;
+    --bg-lightness: 0%;
+    --tw-bg-opacity: 1;
+}
+
+/* Global Styles */
+html, body, .stApp {
+    background: hsl(var(--bg-100) var(--bg-saturation) var(--bg-lightness) / var(--tw-bg-opacity)) !important;
+    color: var(--text-color) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 400 !important;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* Main Header */
+.main-header {
+    color: white;
+    padding: 2rem;
+    text-align: center;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Streamlit Header Styles */
+.stTitle {
+    color: var(--primary-color) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 2.5rem !important;
+    text-align: center !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.stCaption {
+    color: var(--secondary-color) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 400 !important;
+    text-align: center !important;
+    opacity: 0.9 !important;
+    font-size: 1.5rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* Streamlit Sidebar Styles */
+.css-1lcbmhc,
+[data-testid="stSidebar"],
+.stSidebar {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+.css-1lcbmhc button,
+[data-testid="stSidebar"] button,
+.stSidebar button {
+    background: transparent !important;
+    color: #bbb !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 0.75rem 1rem !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    transition: none !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.css-1lcbmhc button:hover,
+[data-testid="stSidebar"] button:hover,
+.stSidebar button:hover {
+    background: var(--primary-color) !important;
+    color: white !important;
+}
+
+.css-1lcbmhc button:active,
+.css-1lcbmhc button:focus,
+[data-testid="stSidebar"] button:active,
+[data-testid="stSidebar"] button:focus,
+.stSidebar button:active,
+.stSidebar button:focus {
+    background: var(--primary-color) !important;
+    color: white !important;
+}
+
+/* Sidebar title styling */
+.css-1lcbmhc h1,
+[data-testid="stSidebar"] h1,
+.stSidebar h1 {
+    color: var(--primary-color) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Navigation Styles */
+.nav-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 250px;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0 12px 12px 0 0;
+    padding: 1rem;
+    overflow-y: auto;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+}
+
+/* Buttons */
+.stButton > button {
+    background: transparent !important;
+    color: #bbb !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 0.5rem 1.5rem !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    transition: none !important;
+    cursor: pointer !important;
+}
+
+.stButton > button:active,
+.stButton > button:focus,
+.stButton[data-testid="baseButton-primary"] {
+    background: var(--primary-color) !important;
+    color: white !important;
+}
+
+.stButton > button:hover {
+    background: transparent !important;
+    color: #bbb !important;
+    box-shadow: none !important;
+}
+
+.stButton > button:disabled {
+    background: #bbb !important;
+    color: white !important;
+    cursor: not-allowed !important;
+}
+
+/* Session Clear Button */
+.session-clear-btn {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 0.75rem 1rem !important;
+    cursor: pointer !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    box-shadow: none !important;
+    transition: none !important;
+    width: 100% !important;
+    margin-top: 1rem !important;
+    text-align: left !important;
+    align-self: flex-start;
+    justify-content: flex-start;
+}
+
+.session-clear-btn:hover {
+    background: var(--secondary-color) !important;
+    transform: none !important;
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3) !important;
+}
+
+/* File Uploader */
+[data-testid="stFileUploaderDropzone"] {
+    background: transparent !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    transition: none !important;
+}
+
+[data-testid="stFileUploaderDropzone"]:hover {
+    background: transparent !important;
+    border-color: #ddd !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stFileUploaderDropzoneInstructions"],
+[data-testid="stFileUploaderDropzoneInstructions"] span,
+[data-testid="stFileUploaderDropzoneInstructions"] svg {
+    color: #bbb !important;
+    fill: #bbb !important;
+}
+
+[data-testid="stBaseButton-secondary"] {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+}
+
+/* Forms and Inputs */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea {
+    color: var(--text-color) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 1rem !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1) !important;
+    outline: none !important;
+}
+
+/* Chat Interface */
+.chat-container {
+    max-width: 100%;
+    padding: 1rem 0;
+}
+
+.chat-message {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+    border: none;
+}
+
+.chat-message.user {
+    background: var(--primary-color);
+    color: white;
+    margin-left: 2rem;
+}
+
+.chat-message.assistant {
+    color: var(--text-color);
+    margin-right: 2rem;
+}
+
+.chat-avatar {
+    font-size: 1rem;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.user .chat-avatar {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.chat-content {
+    flex: 1;
+    line-height: 1.5;
+}
+
+/* Expanders */
+.streamlit-expanderHeader {
+    border: none !important;
+    border-radius: 6px !important;
+    color: var(--text-color) !important;
+}
+
+.streamlit-expanderHeader:hover {
+    border-color: var(--primary-color) !important;
+    background: var(--hover-bg) !important;
+}
+
+/* Alert Messages */
+.stSuccess {
+    background: rgba(22, 163, 74, 0.1) !important;
+    border-left: 4px solid var(--success-color) !important;
+    color: var(--success-color) !important;
+}
+
+.stWarning {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-left: 4px solid var(--warning-color) !important;
+    color: var(--warning-color) !important;
+}
+
+.stError {
+    background: rgba(220, 38, 38, 0.1) !important;
+    border-left: 4px solid var(--danger-color) !important;
+    color: var(--danger-color) !important;
+}
+
+.stInfo {
+    background: rgba(107, 114, 128, 0.1) !important;
+    border-left: 4px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+
+/* Checkboxes and Radio Buttons */
+.stCheckbox label,
+.stRadio label {
+    color: var(--text-color) !important;
+}
+
+/* Toggle Button Styles */
+.stCheckbox input[type="checkbox"],
+.stSwitch input[type="checkbox"] {
+    background-color: var(--primary-color) !important;
+    border: 2px solid var(--primary-color) !important;
+}
+
+.stCheckbox input[type="checkbox"]:checked,
+.stSwitch input[type="checkbox"]:checked {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+}
+
+.stSwitch .track {
+    background-color: var(--primary-color) !important;
+    border: 1px solid var(--primary-color) !important;
+}
+
+.stSwitch .track .thumb {
+    background-color: white !important;
+    border: 1px solid white !important;
+}
+
+.stSwitch input:checked ~ .track {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+}
+
+/* Streamlit Toggle Switch */
+[data-testid="stSwitch"] {
+    background-color: transparent !important;
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 1000 !important;
+}
+
+[data-testid="stSwitch"] .track {
+    background-color: rgba(107, 114, 128, 0.3) !important;
+    border: 1px solid var(--primary-color) !important;
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    width: 48px !important;
+    height: 24px !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stSwitch"] input:checked ~ .track {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+}
+
+[data-testid="stSwitch"] .thumb {
+    background-color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    top: 2px !important;
+    left: 2px !important;
+    transition: transform 0.2s ease !important;
+}
+
+[data-testid="stSwitch"] input:checked ~ .track .thumb {
+    transform: translateX(24px) !important;
+}
+
+/* Additional toggle visibility fixes */
+.stSwitch {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.stSwitch input[type="checkbox"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 1001 !important;
+}
+
+/* Welcome Screen */
+.welcome-container {
+    text-align: center;
+    padding: 3rem 0;
+}
+
+.welcome-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.welcome-title {
+    color: #bbb;
+    margin-bottom: 1rem;
+}
+
+.welcome-description {
+    color: #888;
+    font-size: 1.1rem;
+}
+
+.welcome-instruction {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+/* Document Cards */
+.document-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.document-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+}
+
+.document-meta {
+    font-size: 0.9rem;
+    color: var(--muted-text);
+}
+
+/* Feature Cards */
+.feature-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: none;
+}
+
+.feature-card:hover {
+    box-shadow: 0 4px 8px rgba(107, 114, 128, 0.15);
+    border-color: var(--primary-color);
+    transform: none;
+    background: var(--hover-bg);
+}
+
+.feature-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.feature-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+}
+
+.feature-description {
+    color: var(--muted-text);
+    font-size: 0.9rem;
+}
+
+/* Source Boxes */
+.source-box {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.source-box:hover {
+    border-color: var(--primary-color);
+    background: var(--hover-bg);
+}
+
+.source-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.25rem;
+}
+
+.source-meta {
+    font-size: 0.8rem;
+    color: var(--muted-text);
+}
+
+/* Metrics Display */
+.metrics-container {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.metric-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 1rem;
+    flex: 1;
+    min-width: 150px;
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: var(--muted-text);
+    margin-top: 0.25rem;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    color: #666;
+    padding: 2rem 0;
+    font-size: 0.9rem;
+}
+
+.footer p {
+    margin: 0.25rem 0;
+}
+
+.footer .session-id {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 400 !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.st-at {
+    background-color: transparent !important;
+}
+
+.st-al {
+    color: var(--text-color) !important;
+}
+
+/* Main Content Spacing */
+.stVerticalBlock {
+    margin-left: 0 !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+/* Center Main Content */
+.stMainBlockContainer {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chat-message.user {
+        margin-left: 1rem;
+    }
+    
+    .chat-message.assistant {
+        margin-right: 1rem;
+    }
+    
+    .stTitle {
+        font-size: 2rem !important;
+    }
+    
+    .nav-sidebar {
+        position: static;
+        width: 100%;
+        margin-bottom: 1rem;
+        height: auto;
+    }
+    
+    .metrics-container {
+        flex-direction: column;
+    }
+    
+    .metric-card {
+        min-width: auto;
+    }
+    
+    .stVerticalBlock {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Loading States */
+.stSpinner {
+    color: var(--primary-color) !important;
+}
+
+/* Progress Bar */
+.stProgress .progress-bar {
+    background: var(--primary-color) !important;
+}
+
+/* Slider */
+.stSlider .slider {
+    background: var(--primary-color) !important;
+}
+
+/* Select Box */
+.stSelectbox > div > div > select {
+    color: var(--text-color) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 6px !important;
+}
+
+/* Data Tables */
+.stDataFrame {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+}
+
+.stDataFrame th {
+    background: var(--primary-color) !important;
+    color: white !important;
+}
+
+.stDataFrame td {
+    color: var(--text-color) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Tooltips */
+.stTooltip {
+    background: var(--text-color) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+}
+
+/* File Uploader Styles */
+.stFileUploaderDropzone {
+    background: rgba(107, 114, 128, 0.1) !important;
+    border: 2px dashed var(--primary-color) !important;
+    border-radius: 12px !important;
+    padding: 2rem !important;
+    min-height: 200px !important;
+    transition: all 0.3s ease !important;
+}
+
+.stFileUploaderDropzone:hover {
+    background: rgba(107, 114, 128, 0.2) !important;
+    border-color: var(--secondary-color) !important;
+    transform: scale(1.02) !important;
+}
+
+.stFileUploaderDropzoneInstructions {
+    color: var(--primary-color) !important;
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+}
+
+.stFileUploader > div > div > div > label {
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+    color: var(--primary-color) !important;
+}
+
+/* Icon Colors */
+.keyboard_double_arrow_left,
+[data-testid="keyboard_double_arrow_left"],
+svg[data-icon="keyboard_double_arrow_left"],
+.material-icons.keyboard_double_arrow_left {
+    color: var(--primary-color) !important;
+    fill: var(--primary-color) !important;
+}
+
+.st-emotion-cache-zy6yx3 {
+    padding: 0 !important;
+}
+
+.st-emotion-cache-1x83ikg {
+    position: relative;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    color: #bbb !important;
+    color-scheme: dark !important;
+    z-index: 999991;
+    min-width: 200px;
+    max-width: 600px;
+    transform: none;
+    transition: transform 300ms, min-width 300ms, max-width 300ms;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+}
+
+.st-emotion-cache-1p1gx84 {
+    font-size: 1.3rem !important;
+    color: var(--primary-color) !important;
+    font-weight: 600 !important;
+}
+
+.st-emotion-cache-16l8l9v {
+    background: transparent !important;
+}
+
