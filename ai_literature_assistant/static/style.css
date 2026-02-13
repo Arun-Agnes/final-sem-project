@@ -198,9 +198,10 @@ label {
     opacity: 1 !important;
 }
 
-/* Sidebar Buttons */
+/* Sidebar Buttons — base styles for ALL sidebar buttons */
 [data-testid="stSidebar"] button {
-    background: transparent !important;
+    background-color: transparent !important;
+    background-repeat: no-repeat !important;
     color: #bbb !important;
     border: none !important;
     border-radius: 6px !important;
@@ -212,7 +213,7 @@ label {
     width: 100% !important;
     box-sizing: border-box !important;
     margin-bottom: 0.5rem !important;
-    font-size: 2rem !important;
+    font-size: 1rem !important;
     line-height: 1.4 !important;
     transition: all 0.2s ease-in-out;
 }
@@ -222,25 +223,193 @@ label {
     justify-content: var(--sidebar-btn-justify, flex-start) !important;
 }
 
-/* Force icon/text size on ALL inner elements of sidebar buttons */
 [data-testid="stSidebar"] button *,
 [data-testid="stSidebar"] button p,
 [data-testid="stSidebar"] button span,
 [data-testid="stSidebar"] button div p {
-    font-size: 1.5rem !important;
+    font-size: 1rem !important;
     line-height: 1.4 !important;
 }
 
 [data-testid="stSidebar"] button:hover {
-    background: var(--primary-color) !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
     color: white !important;
-    border-radius: 0 !important;
 }
 
 [data-testid="stSidebar"] button:active,
 [data-testid="stSidebar"] button:focus {
-    background: var(--primary-color) !important;
+    background-color: rgba(255, 255, 255, 0.12) !important;
     color: white !important;
+}
+
+/* ===== SVG Icons for EXPANDED sidebar nav buttons ===== */
+/* Chat */
+div.st-key-nav-chat button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+}
+
+div.st-key-nav-chat button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    color: white !important;
+}
+
+/* Documents */
+div.st-key-nav-docs button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V8h-3a1 1 0 01-1-1V4H6z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+}
+
+div.st-key-nav-docs button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V8h-3a1 1 0 01-1-1V4H6z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    color: white !important;
+}
+
+/* Compare */
+div.st-key-nav-compare button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+}
+
+div.st-key-nav-compare button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    color: white !important;
+}
+
+/* Export */
+div.st-key-nav-export button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+}
+
+div.st-key-nav-export button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    color: white !important;
+}
+
+/* New Session — override Streamlit button styles */
+div.st-key-nav-new-session button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    background-color: transparent !important;
+    color: #bbb !important;
+    border: none !important;
+}
+
+div.st-key-nav-new-session button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: white !important;
+}
+
+div.st-key-nav-new-session button:active,
+div.st-key-nav-new-session button:focus {
+    background: rgba(255, 255, 255, 0.12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.5rem 1.5rem !important;
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: white !important;
+}
+
+/* History items — chat bubble icon (use shorthand to preserve icon on hover) */
+[data-testid="stSidebar"] div[class*="st-key-hist_"] button {
+    padding-left: 2.8rem !important;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23666'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.2rem 1.2rem !important;
+    font-size: 0.85rem !important;
+    color: #888 !important;
+}
+
+[data-testid="stSidebar"] div[class*="st-key-hist_"] button:hover {
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") no-repeat 0.75rem center / 1.2rem 1.2rem !important;
+    color: white !important;
+}
+
+[data-testid="stSidebar"] div[class*="st-key-hist_"] button *,
+[data-testid="stSidebar"] div[class*="st-key-hist_"] button p {
+    font-size: 0.85rem !important;
+}
+
+/* ===== SVG Icons for COLLAPSED sidebar nav (icon-only mode) ===== */
+div.st-key-nav-chat-icon button,
+div.st-key-nav-docs-icon button,
+div.st-key-nav-compare-icon button,
+div.st-key-nav-export-icon button,
+div.st-key-nav-new-session-icon button {
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-width: 40px !important;
+    padding: 0 !important;
+    margin: 0.2rem auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-position: center !important;
+    background-size: 1.5rem 1.5rem !important;
+    border-radius: 8px !important;
+    font-size: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+}
+
+/* Hide text in collapsed icon buttons */
+div.st-key-nav-chat-icon button *,
+div.st-key-nav-docs-icon button *,
+div.st-key-nav-compare-icon button *,
+div.st-key-nav-export-icon button *,
+div.st-key-nav-new-session-icon button * {
+    font-size: 0 !important;
+    color: transparent !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Individual collapsed icons */
+div.st-key-nav-chat-icon button {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-chat-icon button:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath d='M2 5.5C2 3.57 3.57 2 5.5 2h9C16.43 2 18 3.57 18 5.5v5c0 1.93-1.57 3.5-3.5 3.5H10l-4 3v-3H5.5C3.57 14 2 12.43 2 10.5v-5z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-docs-icon button {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V8h-3a1 1 0 01-1-1V4H6z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-docs-icon button:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V8h-3a1 1 0 01-1-1V4H6z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-compare-icon button {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-compare-icon button:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-export-icon button {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-export-icon button:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z'/%3E%3C/svg%3E") !important;
+}
+
+div.st-key-nav-new-session-icon button {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") !important;
+    background-color: transparent !important;
+}
+
+div.st-key-nav-new-session-icon button:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+div.st-key-nav-new-session-icon button:active,
+div.st-key-nav-new-session-icon button:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z'/%3E%3C/svg%3E") !important;
+    background-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Sidebar Title */
@@ -498,10 +667,10 @@ label {
 }
 
 /* Specifically target the chat input wrapper div if it has a background */
-/* Specifically target the chat input wrapper div if it has a background */
 .stChatInput .st-emotion-cache-1ab1jlb,
 .st-emotion-cache-1y34ygi,
 .st-emotion-cache-1a4aqlr,
+.st-emotion-cache-nuirfo,
 div[data-testid="stBottomBlockContainer"]>div {
     background-color: transparent !important;
 }
@@ -517,18 +686,27 @@ div[data-testid="stBottomBlockContainer"]>div {
 }
 
 [data-testid="stRadio"] label[data-checked="true"] {
-    color: var(--primary-color) !important;
+    color: #fff !important;
+    font-weight: bold !important;
+}
+
+/* Override default Streamlit blue loader/progress bar to gray */
+.st-at,
+.stProgress>div>div>div>div {
+    background-color: #666 !important;
 }
 
 /* ===== Chat Input Box ===== */
 [data-testid="stChatInput"] {
-    background-color: #1a1a2e !important;
+    background-color: #333333 !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
     border-radius: 12px !important;
 }
 
+/* Ensure chat input text is visible (light color on dark theme) */
+.stChatInput textarea,
 [data-testid="stChatInput"] textarea {
-    background-color: transparent !important;
+    background-color: #333333 !important;
     color: #eee !important;
     caret-color: #eee !important;
 }
@@ -539,6 +717,20 @@ div[data-testid="stBottomBlockContainer"]>div {
 
 [data-testid="stChatInput"] button {
     color: var(--primary-color) !important;
+}
+
+/* Resize and reposition chat input to right side (50% width) */
+.stChatInput {
+    width: 65% !important;
+    position: fixed !important;
+    bottom: 3rem !important;
+    right: 3rem !important;
+    left: auto !important;
+}
+
+/* Hide the st.cache_resource spinner */
+.stSpinner {
+    display: none !important;
 }
 
 /* ===== Chat Interface ===== */
@@ -819,24 +1011,34 @@ div.st-key-nav-profile-popover {
 
 div.st-key-nav-profile-top button,
 div.st-key-nav-profile-popover [data-testid="stPopoverButton"] {
-    background-color: #000000 !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-    border-radius: 8px !important;
-    padding: 8px 24px !important;
-    font-weight: 600 !important;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6) !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    padding: 0 !important;
+    background: #1a1a2e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23ccc'%3E%3Cpath fill-rule='evenodd' d='M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z'/%3E%3C/svg%3E") no-repeat center / 1.4rem 1.4rem !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 50% !important;
+    font-size: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
+    cursor: pointer !important;
 }
 
 div.st-key-nav-profile-top button *,
 div.st-key-nav-profile-popover [data-testid="stPopoverButton"] * {
-    color: #ffffff !important;
+    font-size: 0 !important;
+    color: transparent !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }
 
 div.st-key-nav-profile-top button:hover,
 div.st-key-nav-profile-popover [data-testid="stPopoverButton"]:hover {
-    background-color: #111111 !important;
-    border-color: #ffffff !important;
+    background: #252545 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23fff'%3E%3Cpath fill-rule='evenodd' d='M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z'/%3E%3C/svg%3E") no-repeat center / 1.4rem 1.4rem !important;
+    border-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 /* ===== Upload/Login Trigger Button ===== */
@@ -1076,4 +1278,87 @@ div[role="dialog"]>div {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* ===== Profile Popover Dark Theme ===== */
+/* Target ALL popover content panels (the dropdown body) */
+[data-testid="stPopover"],
+[data-testid="stPopover"]>div,
+div[data-baseweb="popover"],
+div[data-baseweb="popover"]>div {
+    background-color: #1a1a2e !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stPopover"] [data-testid="stMarkdownContainer"],
+[data-testid="stPopover"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stPopover"] [data-testid="stMarkdownContainer"] strong {
+    color: #e0e0e0 !important;
+}
+
+[data-testid="stPopover"] button {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 8px !important;
+}
+
+[data-testid="stPopover"] button:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Fix the popover backdrop/container that has white bg (.st-ak etc) */
+.st-ak,
+.st-emotion-cache-1l269bu,
+.st-emotion-cache-r421ms,
+div[data-baseweb="popover"]>div,
+div[data-baseweb="popover"]>div>div {
+    background-color: #1a1a2e !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 12px !important;
+}
+
+/* ===== Custom Sidebar Toggle Button ===== */
+div.st-key-toggle-sidebar button {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-width: 36px !important;
+    padding: 0 !important;
+    margin: 0.25rem auto 0.75rem auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='%23999' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M16.5 4C17.3284 4 18 4.67157 18 5.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5C2 4.67157 2.67157 4 3.5 4H16.5ZM7 15H16.5C16.7761 15 17 14.7761 17 14.5V5.5C17 5.22386 16.7761 5 16.5 5H7V15ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H6V5H3.5Z'/%3E%3C/svg%3E") no-repeat center / 1.5rem 1.5rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 8px !important;
+    font-size: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+
+div.st-key-toggle-sidebar button:hover {
+    background: rgba(255, 255, 255, 0.12) url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='%23fff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M16.5 4C17.3284 4 18 4.67157 18 5.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5C2 4.67157 2.67157 4 3.5 4H16.5ZM7 15H16.5C16.7761 15 17 14.7761 17 14.5V5.5C17 5.22386 16.7761 5 16.5 5H7V15ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H6V5H3.5Z'/%3E%3C/svg%3E") no-repeat center / 1.5rem 1.5rem !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+div.st-key-toggle-sidebar button:active,
+div.st-key-toggle-sidebar button:focus {
+    background: rgba(255, 255, 255, 0.15) url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='%23fff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M16.5 4C17.3284 4 18 4.67157 18 5.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5C2 4.67157 2.67157 4 3.5 4H16.5ZM7 15H16.5C16.7761 15 17 14.7761 17 14.5V5.5C17 5.22386 16.7761 5 16.5 5H7V15ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H6V5H3.5Z'/%3E%3C/svg%3E") no-repeat center / 1.5rem 1.5rem !important;
+}
+
+/* Hide ALL content inside the toggle button (⊞ text, any child elements) */
+div.st-key-toggle-sidebar button *,
+div.st-key-toggle-sidebar button p,
+div.st-key-toggle-sidebar button span,
+div.st-key-toggle-sidebar button div {
+    font-size: 0 !important;
+    color: transparent !important;
+    line-height: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    display: block !important;
 }

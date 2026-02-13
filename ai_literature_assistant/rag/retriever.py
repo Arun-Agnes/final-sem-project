@@ -23,7 +23,7 @@ class RAGRetriever:
         self,
         chroma_db_path: str = None,
         collection_name: str = "research_papers",
-        embedding_model: str = "all-mpnet-base-v2",
+        embedding_model: str = "all-MiniLM-L6-v2",
     ):
         if chroma_db_path is None:
             chroma_db_path = os.path.join(PROJECT_ROOT, "data", "chroma_db")
@@ -122,6 +122,46 @@ class RAGRetriever:
                 "error": str(e),
                 "results": [],
                 "success": False,
+            }
+
+    def retrieve_by_metadata(
+        self,
+        where: Dict,
+        n_results: int = 100,
+    ) -> Dict:
+        """Directly retrieve documents matching metadata filters (no vector search)."""
+        try:
+            # collection.get returns flat lists, not list of lists like query()
+            results = self.collection.get(
+                where=where,
+                limit=n_results,
+                include=["documents", "metadatas"]
+            )
+            
+            formatted = []
+            if results["ids"]:
+                for i in range(len(results["ids"])):
+                    item = {
+                        "id": results["ids"][i],
+                        "content": results["documents"][i] if results.get("documents") else "",
+                        "metadata": results["metadatas"][i] if results.get("metadatas") else {},
+                        "similarity_score": 1.0,  # Exact match implied
+                        "distance": 0.0
+                    }
+                    formatted.append(item)
+            
+            return {
+                "query": f"metadata_filter={where}",
+                "results": formatted,
+                "total": len(formatted),
+                "success": True
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "results": [],
+                "total": 0,
+                "success": False
             }
 
     # Formats raw ChromaDB results into a structured response

@@ -1,150 +1,165 @@
 # ingestion/ingest_all.py
 
+import os
 import sys
+import logging
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
 
-from .pdf_loader import extract_text_from_pdf, list_pdfs
+from .pdf_loader import extract_text_from_pdf, list_pdfs, batch_extract
 from .preprocess import ResearchPaperChunker
 from .embed_store import store_documents_enhanced
 
-PDF_DIR = Path(__file__).parent.parent / "data" / "pdfs"
+logger = logging.getLogger(__name__)
+
+
+PDF_DIR = Path(
+    os.getenv(
+        "PDF_DIR",
+        str(Path(__file__).parent.parent / "data" / "pdfs"),
+    )
+)
 
 
 def validate_environment() -> List[Path]:
-    """
-    Validate PDF directory and return list of PDFs.
-    """
+    """Validate PDF directory and return list of PDF paths."""
     if not PDF_DIR.exists():
-        raise FileNotFoundError(f"PDF directory not found: {PDF_DIR}")
+        raise FileNotFoundError(f"[INGEST] PDF directory not found: {PDF_DIR}")
 
     pdf_files = list_pdfs(str(PDF_DIR))
 
     if not pdf_files:
-        raise ValueError(f"No PDF files found in {PDF_DIR}")
+        raise ValueError(f"[INGEST] No PDF files found in {PDF_DIR}")
 
     return [Path(p) for p in pdf_files]
 
 
 def process_single_pdf(
     pdf_path: Path,
-    chunker: ResearchPaperChunker
-) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """
-    Extract text → chunk → generate IDs
-    """
+    chunker: ResearchPaperChunker,
+) -> Tuple[List[Any], List[str]]:
+   
     try:
         text = extract_text_from_pdf(str(pdf_path))
 
         if not text or len(text.strip()) < 100:
-            print(f"[WARN] Skipping {pdf_path.name}: insufficient text")
+            logger.warning(f"[INGEST] Skipping {pdf_path.name}: insufficient text")
             return [], []
 
         paper_id = pdf_path.stem
-
         chunks = chunker.chunk_text(text, paper_id)
-        chunk_ids = [
-            f"{paper_id}_chunk_{i:04d}"
-            for i in range(len(chunks))
-        ]
+
+        # Use the chunk_id already set by ResearchPaperChunker (no duplication)
+        chunk_ids = [c.chunk_id for c in chunks]
 
         return chunks, chunk_ids
 
     except Exception as e:
-        print(f"[ERROR] Failed to process {pdf_path.name}: {e}")
+        logger.error(f"[INGEST] Failed to process {pdf_path.name}: {e}")
         return [], []
 
 
 def ingest_pdfs_enhanced(
     collection_name: str = "research_papers",
     chunk_size: int = 1000,
-    overlap: int = 150
+    overlap: int = 150,
+    max_workers: int = 4,
 ) -> Dict[str, Any]:
-    """
-    Main ingestion pipeline.
-    """
+   
     try:
         pdf_files = validate_environment()
     except Exception as e:
-        print(f"[FATAL] {e}")
+        logger.error(f"[INGEST] {e}")
         return {"error": str(e)}
 
-    print("=" * 60)
-    print(f"Starting ingestion of {len(pdf_files)} PDF(s)")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info(f"[INGEST] Starting ingestion of {len(pdf_files)} PDF(s)")
+    logger.info("=" * 60)
 
-    chunker = ResearchPaperChunker(
-        chunk_size=chunk_size,
-        overlap=overlap
-    )
+    chunker = ResearchPaperChunker(chunk_size=chunk_size, overlap=overlap)
 
-    all_chunks = []
-    all_ids = []
-
+    all_chunks: List[Any] = []
+    all_ids: List[str] = []
     processed = 0
     failed = 0
 
-    for idx, pdf_path in enumerate(pdf_files, start=1):
-        print(f"\n[{idx}/{len(pdf_files)}] Processing: {pdf_path.name}")
+   
+    logger.info(f"[INGEST] Extracting text with {max_workers} parallel workers...")
+    extraction_results = batch_extract(str(PDF_DIR), max_workers=max_workers)
 
-        chunks, ids = process_single_pdf(pdf_path, chunker)
 
-        if chunks:
-            all_chunks.extend(chunks)
-            all_ids.extend(ids)
-            processed += 1
-            print(f"  ✔ Created {len(chunks)} chunks")
-        else:
+    text_by_path = {r["path"]: r["text"] for r in extraction_results}
+
+    for pdf_path in pdf_files:
+        raw_text = text_by_path.get(str(pdf_path))
+
+        if not raw_text or len(raw_text.strip()) < 100:
+            logger.warning(f"[INGEST] Skipping {pdf_path.name}: insufficient text")
             failed += 1
-            print(f"  ✖ No chunks created")
+            continue
+
+        try:
+            paper_id = pdf_path.stem
+            chunks = chunker.chunk_text(raw_text, paper_id)
+
+            if not chunks:
+                logger.warning(f"[INGEST] No chunks from {pdf_path.name}")
+                failed += 1
+                continue
+
+            chunk_ids = [c.chunk_id for c in chunks]
+
+            all_chunks.extend(chunks)
+            all_ids.extend(chunk_ids)
+            processed += 1
+            logger.info(f"[INGEST] ✔ {pdf_path.name} → {len(chunks)} chunks")
+
+        except Exception as e:
+            logger.error(f"[INGEST] Chunking failed for {pdf_path.name}: {e}")
+            failed += 1
 
     if not all_chunks:
-        print("[ERROR] No chunks generated from any PDF")
+        logger.error("[INGEST] No chunks generated from any PDF.")
         return {"error": "No chunks generated"}
 
-    print("\n" + "-" * 60)
-    print(f"Storing {len(all_chunks)} chunks in ChromaDB...")
-    print("-" * 60)
-
+    logger.info(f"[INGEST] Storing {len(all_chunks)} chunks in ChromaDB...")
     store_documents_enhanced(
         chunks=all_chunks,
         ids=all_ids,
-        collection_name=collection_name
+        collection_name=collection_name,
     )
-
 
     stats = {
         "total_pdfs": len(pdf_files),
         "processed_pdfs": processed,
         "failed_pdfs": failed,
         "total_chunks": len(all_chunks),
-        "avg_chunks_per_pdf": len(all_chunks) / processed if processed else 0,
+        "avg_chunks_per_pdf": round(len(all_chunks) / processed, 1) if processed else 0,
     }
 
-    print("\nIngestion Summary")
-    print("-" * 60)
+    logger.info("[INGEST] Ingestion Summary")
+    logger.info("-" * 60)
     for k, v in stats.items():
-        print(f"{k.replace('_', ' ').title()}: {v}")
+        logger.info(f"[INGEST]   {k.replace('_', ' ').title()}: {v}")
 
-    return stats
+    return stats         
 
 
-# Backward compatibility
-def ingest_pdfs():
+# ── Backward compatibility ─────────────────────────────────────────────────
+
+def ingest_pdfs() -> None:
+    """Legacy simple ingestion (no metadata, no parallel processing)."""
     from .preprocess import chunk_text
     from .embed_store import store_documents
 
-    all_chunks = []
-    ids = []
+    all_chunks: List[str] = []
+    ids: List[str] = []
     idx = 0
 
-    pdf_files = list_pdfs(str(PDF_DIR))
-
-    for pdf in pdf_files:
-        print(f"Processing: {Path(pdf).name}")
+    for pdf in list_pdfs(str(PDF_DIR)):
+        logger.info(f"[INGEST] Processing: {Path(pdf).name}")
         text = extract_text_from_pdf(pdf)
         chunks = chunk_text(text, chunk_size=800, overlap=120)
-
         for chunk in chunks:
             all_chunks.append(chunk)
             ids.append(f"legacy_{idx:04d}")
@@ -154,12 +169,15 @@ def ingest_pdfs():
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("AI Research Literature Assistant - Ingestion")
-    print("=" * 60)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logger.info("=" * 60)
+    logger.info("AI Research Literature Assistant — Ingestion Pipeline")
+    logger.info("=" * 60)
 
     if len(sys.argv) > 1 and sys.argv[1] == "--simple":
-        print("Running legacy ingestion...")
+        logger.info("Running legacy ingestion...")
         ingest_pdfs()
     else:
-        ingest_pdfs_enhanced()
+        result = ingest_pdfs_enhanced()
+        if "error" in result:
+            sys.exit(1)

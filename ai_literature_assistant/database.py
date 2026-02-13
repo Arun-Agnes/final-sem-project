@@ -38,6 +38,7 @@ class Message(Base):
     session_id = Column(Integer, ForeignKey('sessions.id'), nullable=False)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    sources_json = Column(Text, nullable=True)  # JSON-encoded sources for assistant messages
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     session = relationship("Session", back_populates="messages")

@@ -11,7 +11,7 @@ QUERY_RESULTS_DIR = os.path.join(PROJECT_ROOT, "query_results")
 
 # ChromaDB settings
 COLLECTION_NAME = "research_papers"
-EMBEDDING_MODEL = "all-mpnet-base-v2"
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 # OpenAI settings (model only - no API key here!)
 OPENAI_MODEL = "gpt-4o-mini"  
@@ -19,7 +19,7 @@ OPENAI_TEMPERATURE = 0.3
 OPENAI_MAX_TOKENS = 1500
 
 # RAG settings
-MAX_RETRIEVAL_RESULTS = 5
+MAX_RETRIEVAL_RESULTS = 15
 MAX_CONTEXT_LENGTH = 4000
 MIN_SIMILARITY_THRESHOLD = 0.3
 

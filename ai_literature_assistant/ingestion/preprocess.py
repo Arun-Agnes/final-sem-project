@@ -1,17 +1,26 @@
 # ingestion/preprocess.py
+
+import os
 import re
-import logging
 import uuid
-from typing import List, Dict, Any, Optional
+import logging
+import asyncio
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from functools import lru_cache
+from typing import List, Dict, Any, Optional, Tuple
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Configure logging
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────────────────────
+# Data Models
+# ─────────────────────────────────────────────────────────────
 
 @dataclass
 class PaperMetadata:
-    """Dataclass for structured paper metadata."""
+    """Structured metadata for a research paper."""
     title: str = ""
     authors: List[str] = field(default_factory=list)
     affiliations: List[str] = field(default_factory=list)
@@ -20,39 +29,177 @@ class PaperMetadata:
     publication_year: Optional[int] = None
     journal_conference: str = ""
     doi: str = ""
-    
+
+
 @dataclass
 class TextChunk:
-    """Dataclass for structured text chunks."""
+    """A single text chunk with associated metadata."""
     text: str
     metadata: Dict[str, Any]
     chunk_id: str = ""
 
+
+# ─────────────────────────────────────────────────────────────
+# LLM Title Extraction (module-level, imports resolved once)
+# ─────────────────────────────────────────────────────────────
+
+try:
+    from openai import AsyncOpenAI, OpenAI
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    _OPENAI_AVAILABLE = False
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from config import OPENAI_MODEL
+except ImportError:
+    OPENAI_MODEL = "gpt-4o-mini"
+
+
+def _extract_title_with_llm(text_preview: str) -> str:
+    
+    if not _OPENAI_AVAILABLE:
+        return ""
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return ""
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Extract the EXACT title of the research paper from the first-page text. "
+                        "Return ONLY the title. Ignore journal names, volume numbers, or headers. "
+                        "Return nothing if no clear paper title is found."
+                    ),
+                },
+                {"role": "user", "content": text_preview},
+            ],
+            temperature=0.1,
+            max_tokens=100,
+        )
+        title = response.choices[0].message.content.strip()
+        return title if len(title) <= 300 else ""
+
+    except Exception as e:
+        logger.warning(f"[PREPROCESS] LLM title extraction failed: {e}")
+        return ""
+
+
+async def _extract_title_with_llm_async(text_preview: str) -> str:
+    
+    if not _OPENAI_AVAILABLE:
+        return ""
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return ""
+
+    try:
+        client = AsyncOpenAI(api_key=api_key)
+        response = await client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Extract the EXACT title of the research paper from the first-page text. "
+                        "Return ONLY the title. Ignore journal names, volume numbers, or headers. "
+                        "Return nothing if no clear paper title is found."
+                    ),
+                },
+                {"role": "user", "content": text_preview},
+            ],
+            temperature=0.1,
+            max_tokens=100,
+        )
+        title = response.choices[0].message.content.strip()
+        return title if len(title) <= 300 else ""
+
+    except Exception as e:
+        logger.warning(f"[PREPROCESS] Async LLM title extraction failed: {e}")
+        return ""
+
+
+# ─────────────────────────────────────────────────────────────
+# Top-level worker function for ProcessPoolExecutor
+# (must be picklable — defined at module level, not inside a class)
+# ─────────────────────────────────────────────────────────────
+
+def _process_single_document(doc_data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    
+    try:
+        chunker = ResearchPaperChunker()
+        chunks = chunker.chunk_document(doc_data)
+        paper_id = doc_data.get("paper_id") or doc_data.get("title", "unknown")
+        logger.info(f"[PREPROCESS] ✓ Processed: {paper_id} → {len(chunks)} chunks")
+        return [{"text": c.text, "metadata": c.metadata, "chunk_id": c.chunk_id} for c in chunks]
+    except Exception as e:
+        paper_id = doc_data.get("paper_id") or doc_data.get("title", "unknown")
+        logger.error(f"[PREPROCESS] ✗ Failed: {paper_id}: {e}")
+        return None
+
+
+# ─────────────────────────────────────────────────────────────
+# Main Chunker
+# ─────────────────────────────────────────────────────────────
+
 class ResearchPaperChunker:
-    """Enhanced chunker for academic papers with better pattern matching."""
-    
-    # Regex patterns for academic paper components
-    TITLE_PATTERNS = [
-        r'^[A-Z][A-Za-z\s:,-]{10,200}$',  # Title-like lines
-        r'^(?:Title|TITLE)[:\s]+(.+)$',  # Explicit title markers
-    ]
-    
+
+    # ── Compiled patterns (class-level, compiled once) ──────
+    _TITLE_STOP_RE = re.compile(
+        r'^(abstract|authors?|introduction|keywords?)\b', re.IGNORECASE
+    )
+    _AUTHOR_MARKER_RE = re.compile(r'[0-9].*[,∗]|[∗].*[0-9]')
+    _JOURNAL_NOISE_RE = re.compile(
+        r'(journal|proceedings|transactions|volume|issue|publisher|press|'
+        r'conference|accepted|received|published)', re.IGNORECASE
+    )
+    _DOI_RE = re.compile(r'^(doi:|arxiv:|pages?:)', re.IGNORECASE)
+    _PUBLISHER_RE = re.compile(
+        r'(ieee|springer|acm|elsevier|wiley|nature|science)\s+(transactions|proceedings|journal)',
+        re.IGNORECASE,
+    )
+    _COPYRIGHT_RE = re.compile(r'(copyright|©|\(c\))', re.IGNORECASE)
+    _URL_RE = re.compile(r'(http://|https://|www\.|@.+\..+)', re.IGNORECASE)
+    _YEAR_RE = re.compile(r'\b(19|20)\d{2}\b')
+    _PAGE_MARKER_RE = re.compile(r'^\[PAGE\s+(\d+)\]$')
+    _WHITESPACE_NORMALIZE_RE = re.compile(r'\s+')
+    _CAMEL_SPLIT_RE = re.compile(r'([a-z])([A-Z])')
+    _CAMEL_UPPER_RE = re.compile(r'([a-z])([A-Z]{2,})')
+    _CHUNK_ID_CLEAN_RE = re.compile(r'[^a-zA-Z0-9_\-\.]')
+
     AUTHOR_PATTERNS = [
-        r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)*)',  # Multiple authors
-        r'([A-Z][a-z]+\s+[A-Z]\.\s+[A-Z][a-z]+)',  # Middle initial format
-        r'([A-Z][a-z]+\s+[A-Z][a-z]+\s+et\s+al\.)',  # et al. format
+        re.compile(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)*)'),
+        re.compile(r'([A-Z][a-z]+\s+[A-Z]\.\s+[A-Z][a-z]+)'),
+        re.compile(r'([A-Z][a-z]+\s+[A-Z][a-z]+\s+et\s+al\.)'),
     ]
-    
-    SECTION_HEADERS = {
-        'abstract': [r'^Abstract', r'^ABSTRACT', r'^Summary'],
-        'introduction': [r'^1\.', r'^Introduction', r'^INTRODUCTION'],
-        'methodology': [r'^2\.', r'^Methodology', r'^Methods', r'^METHOD'],
-        'results': [r'^3\.', r'^Results', r'^RESULTS', r'^Findings'],
-        'discussion': [r'^4\.', r'^Discussion', r'^DISCUSSION'],
-        'conclusion': [r'^5\.', r'^Conclusion', r'^CONCLUSIONS'],
-        'references': [r'^References', r'^Bibliography', r'^REFERENCES'],
+
+    SECTION_HEADERS: Dict[str, List[str]] = {
+        "abstract":     [r"^Abstract", r"^ABSTRACT", r"^Summary"],
+        "introduction": [r"^1\.", r"^Introduction", r"^INTRODUCTION"],
+        "methodology":  [r"^2\.", r"^Methodology", r"^Methods", r"^METHOD"],
+        "results":      [r"^3\.", r"^Results", r"^RESULTS", r"^Findings"],
+        "discussion":   [r"^4\.", r"^Discussion", r"^DISCUSSION"],
+        "conclusion":   [r"^5\.", r"^Conclusion", r"^CONCLUSIONS"],
+        "references":   [r"^References", r"^Bibliography", r"^REFERENCES"],
     }
-    
+    # Pre-compile section header patterns
+    _SECTION_PATTERNS: Dict[str, List[re.Pattern]] = {
+        sec: [re.compile(p, re.IGNORECASE) for p in pats]
+        for sec, pats in SECTION_HEADERS.items()
+    }
+
     def __init__(self, chunk_size: int = 1000, overlap: int = 150):
         self.chunk_size = chunk_size
         self.overlap = overlap
@@ -60,326 +207,337 @@ class ResearchPaperChunker:
             chunk_size=chunk_size,
             chunk_overlap=overlap,
             length_function=len,
-            separators=["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " ", ""]
+            separators=["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " ", ""],
         )
-    
-    def extract_metadata(self, text: str) -> PaperMetadata:
-        """Extract structured metadata from paper text."""
-        metadata = PaperMetadata()
-        lines = text.split('\n')
-        
-        # Extract title
-        metadata.title = self._extract_title(lines)
-        
-        # Extract authors and affiliations
-        metadata.authors, metadata.affiliations = self._extract_authors_and_affiliations(lines)
-        
-        # Extract abstract
-        metadata.abstract = self._extract_abstract(lines)
-        
-        # Extract keywords
-        metadata.keywords = self._extract_keywords(lines)
-        
-        # Extract publication year
-        metadata.publication_year = self._extract_publication_year(lines)
-        
-        return metadata
-    
-    def _extract_title(self, lines: List[str]) -> str:
-        """
-        Robust title extraction for academic PDFs.
-        Strategy:
-        - Look only at top part of document
-        - Ignore empty, numeric, conference/journal lines
-        - Stop before abstract/authors/intro
-        - Use better heuristics for title detection
-        - Handle titles split across multiple lines or with missing spaces
-        """
-        title_candidates = []
-        in_title = False
-        title_complete = False
-        
-        print("[TITLE EXTRACTION] Starting title extraction...")
-        print(f"[TITLE EXTRACTION] First 10 lines preview:")
-        for i, line in enumerate(lines[:10]):
-            print(f"  Line {i}: [{len(line.strip())}] {line[:100]}")
 
-        for i, line in enumerate(lines[:40]):  # Increased from 30 to 40
+    # ──────────────────────────────────────────────────────
+    # Batch Processing (parallel)
+    # ──────────────────────────────────────────────────────
+
+    def batch_process_documents(
+        self,
+        documents: List[Dict[str, Any]],
+        max_workers: int = 4,
+    ) -> List[Dict[str, Any]]:
+        
+        if not documents:
+            return []
+
+        logger.info(
+            f"[PREPROCESS] Batch processing {len(documents)} docs "
+            f"with {max_workers} workers..."
+        )
+
+        all_chunks: List[Dict[str, Any]] = []
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_process_single_document, doc): doc
+                for doc in documents
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    all_chunks.extend(result)
+
+        logger.info(
+            f"[PREPROCESS] Batch complete → {len(all_chunks)} total chunks "
+            f"from {len(documents)} documents."
+        )
+        return all_chunks
+
+    async def batch_process_with_llm_async(
+        self,
+        documents: List[Dict[str, Any]],
+        max_workers: int = 4,
+    ) -> List[Dict[str, Any]]:
+       
+        if not documents:
+            return []
+
+        logger.info(
+            f"[PREPROCESS] Async batch: pre-fetching LLM titles for "
+            f"{len(documents)} docs..."
+        )
+
+        # Step 1: Concurrently fetch LLM titles for docs that need it
+        async def _maybe_fetch_title(doc: Dict[str, Any]) -> Dict[str, Any]:
+            text = doc.get("content", "")
+            quick_title = self._extract_title(text.split("\n")[:40])
+            if not quick_title or len(quick_title) < 15:
+                first_40_lines = "\n".join(text.split("\n")[:40])
+                llm_title = await _extract_title_with_llm_async(first_40_lines)
+                if llm_title:
+                    doc = {**doc, "_llm_title": llm_title}
+            return doc
+
+        enriched_docs = await asyncio.gather(
+            *[_maybe_fetch_title(d) for d in documents]
+        )
+
+        # Step 2: CPU-bound chunking in parallel processes
+        all_chunks: List[Dict[str, Any]] = []
+        loop = asyncio.get_event_loop()
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            tasks = [
+                loop.run_in_executor(executor, _process_single_document, doc)
+                for doc in enriched_docs
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, list):
+                    all_chunks.extend(result)
+                elif isinstance(result, Exception):
+                    logger.error(f"[PREPROCESS] Worker error: {result}")
+
+        logger.info(f"[PREPROCESS] Async batch complete → {len(all_chunks)} chunks.")
+        return all_chunks
+
+    # ──────────────────────────────────────────────────────
+    # Single-document entry points
+    # ──────────────────────────────────────────────────────
+
+    def chunk_document(self, doc_data: Dict[str, Any]) -> List[TextChunk]:
+        
+        text = doc_data.get("content", "")
+        paper_id = (
+            doc_data.get("paper_id")
+            or doc_data.get("title")
+            or str(uuid.uuid4())
+        )
+        known_title = doc_data.get("title", "")
+        prefetched_llm_title = doc_data.get("_llm_title", "")
+        return self.chunk_text(text, paper_id, known_title, prefetched_llm_title)
+
+    def chunk_text(
+        self,
+        text: str,
+        paper_id: str = "",
+        known_title: str = "",
+        prefetched_llm_title: str = "",
+    ) -> List[TextChunk]:
+        
+        metadata = self.extract_metadata(text)
+
+        # ── Title resolution ──────────────────────────────
+        if not metadata.title or len(metadata.title) < 15:
+            if prefetched_llm_title:
+                metadata.title = prefetched_llm_title
+                logger.debug(f"[PREPROCESS] Used pre-fetched LLM title: {prefetched_llm_title}")
+            else:
+                first_40 = "\n".join(text.split("\n")[:40])
+                llm_title = _extract_title_with_llm(first_40)
+                if llm_title:
+                    metadata.title = llm_title
+                    logger.debug(f"[PREPROCESS] LLM title: {llm_title}")
+
+        if not metadata.title and known_title:
+            metadata.title = known_title
+            logger.debug(f"[PREPROCESS] Falling back to known title: {known_title}")
+        # ─────────────────────────────────────────────────
+
+        chunks: List[TextChunk] = []
+        chunks.extend(self._create_metadata_chunks(metadata, paper_id))
+        chunks.extend(self._create_content_chunks(text, paper_id))
+
+        # Assign stable chunk IDs
+        clean_prefix = self._CHUNK_ID_CLEAN_RE.sub("_", paper_id or "chunk")
+        for i, chunk in enumerate(chunks):
+            if not chunk.chunk_id:
+                chunk.chunk_id = f"{clean_prefix}_{i}"
+
+        return chunks
+
+    # ──────────────────────────────────────────────────────
+    # Metadata extraction
+    # ──────────────────────────────────────────────────────
+
+    def extract_metadata(self, text: str) -> PaperMetadata:
+        """Extract all structured metadata from document text."""
+        lines = text.split("\n")
+        meta = PaperMetadata()
+        meta.title = self._extract_title(lines)
+        meta.authors, meta.affiliations = self._extract_authors_and_affiliations(lines)
+        meta.abstract = self._extract_abstract(lines)
+        meta.keywords = self._extract_keywords(lines)
+        meta.publication_year = self._extract_publication_year(lines)
+        return meta
+
+    def _extract_title(self, lines: List[str]) -> str:
+        
+        candidates: List[str] = []
+        in_title = False
+
+        for i, line in enumerate(lines[:40]):
             clean = line.strip()
 
             if not clean or len(clean) < 3:
-                # Empty lines might indicate end of title
-                if in_title and title_candidates and len(" ".join(title_candidates)) > 20:
-                    title_complete = True
-                    print(f"[TITLE EXTRACTION] Title complete (empty line after substantial content)")
+                if in_title and len(" ".join(candidates)) > 20:
                     break
                 continue
 
-            # Stop when body starts
-            if re.search(r'^(abstract|authors?|introduction|keywords?)\b', clean, re.IGNORECASE):
-                print(f"[TITLE EXTRACTION] Stopped at section marker: {clean[:50]}")
-                break
-            
-            # Stop at author names (contains numbers like 1,2 and symbols like ∗)
-            if re.search(r'[0-9].*[,∗]|[∗].*[0-9]', clean) and i < 10:
-                print(f"[TITLE EXTRACTION] Stopped at author line: {clean[:50]}")
+            # Stop at known section markers
+            if self._TITLE_STOP_RE.search(clean):
                 break
 
-            # Skip header noise (page numbers, conference info, etc.)
-            if i < 15:  # Only skip these in first few lines
-                # Skip page numbers, years alone on a line
-                if re.match(r'^\d+$', clean) or re.match(r'^(19|20)\d{2}$', clean):
-                    print(f"[TITLE EXTRACTION] Skipping page/year: {clean}")
+            # Stop at author/affiliation footnote lines early in doc
+            if i < 10 and self._AUTHOR_MARKER_RE.search(clean):
+                break
+
+            # ── Noise filtering (first 15 lines) ──
+            if i < 15:
+                if re.match(r"^\d+$", clean) or re.match(r"^(19|20)\d{2}$", clean):
                     continue
-                # Skip common header patterns
-                if re.search(r'^(proceedings|conference|journal|volume|issue|doi:|arxiv:|pages?:)', clean, re.IGNORECASE):
-                    print(f"[TITLE EXTRACTION] Skipping header: {clean[:50]}")
+                if self._JOURNAL_NOISE_RE.search(clean):
                     continue
-                # Skip publisher/venue info
-                if re.search(r'(ieee|springer|acm|elsevier|wiley|nature|science)\s+(transactions|proceedings|journal)', clean, re.IGNORECASE):
-                    print(f"[TITLE EXTRACTION] Skipping publisher: {clean[:50]}")
+                if clean.lower().endswith(("journal", "humanity", "science", "research", "review")):
                     continue
-                # Skip copyright and publication info
-                if re.search(r'(copyright|©|\(c\)|published|received|accepted)', clean, re.IGNORECASE):
-                    print(f"[TITLE EXTRACTION] Skipping copyright: {clean[:50]}")
+                if re.search(r"volume\s*\d+|issue\s*\d+", clean, re.IGNORECASE):
+                    continue
+                if self._DOI_RE.search(clean):
+                    continue
+                if self._PUBLISHER_RE.search(clean):
+                    continue
+                if self._COPYRIGHT_RE.search(clean):
                     continue
 
-            # Skip lines with mostly special characters or numbers
-            if re.match(r'^[\d\W]{5,}$', clean):
+            # Skip URL / email lines
+            if self._URL_RE.search(clean):
                 continue
 
-            # Skip URLs and emails
-            if re.search(r'(http://|https://|www\.|@.+\..+)', clean, re.IGNORECASE):
+            # Skip lines that look like symbol/number artefacts
+            if re.match(r"^[\d\W]{5,}$", clean):
                 continue
 
-            # Potential title characteristics:
-            # - Starts with capital letter
-            # - Contains at least 2 words
-            # - Length between 10-200 characters
-            # - Not all caps (unless short)
+            # If we have candidates and hit an author-like line, stop
+            if candidates and re.match(r"^([A-Z][a-z]+\s+[A-Z][a-z]+(,\s*)?)+$", clean):
+                break
+
             word_count = len(clean.split())
-            
-            # Good title candidate criteria
-            # Special handling for all-caps titles (common in academic papers)
-            is_all_caps_title = (
-                clean.isupper() and
-                10 <= len(clean) <= 200 and  # Lowered from 15 to 10
-                word_count >= 1 and  # Allow single words
-                i < 5  # Only consider all-caps in first 5 lines as potential title
+            is_candidate = (
+                10 <= len(clean) <= 200
+                and word_count >= 2
+                and clean[0].isupper()
+            ) or (
+                clean.isupper()
+                and 10 <= len(clean) <= 200
+                and i < 5
             )
-            
-            # If we're already collecting title and this is also all-caps in first 3 lines, include it
-            continuing_title = (
-                in_title and
-                i < 3 and
-                clean.isupper() and
-                len(clean) >= 10 and
-                word_count >= 1
-            )
-            
-            is_good_candidate = (
-                10 <= len(clean) <= 200 and
-                word_count >= 2 and
-                clean[0].isupper() and
-                not (clean.isupper() and len(clean) > 50 and i >= 5)  # Avoid all-caps headers later in doc
-            ) or is_all_caps_title or continuing_title
 
-            if is_good_candidate:
+            if is_candidate:
                 in_title = True
-                title_candidates.append(clean)
-                print(f"[TITLE EXTRACTION] Added candidate {len(title_candidates)}: {clean[:60]}")
-                
-                # Continue collecting if we're still in all-caps title mode (first few lines)
-                if i < 3 and clean.isupper() and len(" ".join(title_candidates)) < 150:
-                    print(f"[TITLE EXTRACTION] Continuing to collect all-caps title...")
-                    continue  # Keep collecting title parts
-                
-                # If we have a substantial title and hit an empty line or punctuation end, stop
-                if len(" ".join(title_candidates)) > 15:
-                    # Check if this line ends with proper punctuation (title ending)
-                    if clean.endswith(('.', '!', '?', ':')):
-                        title_complete = True
-                        print(f"[TITLE EXTRACTION] Title complete (punctuation)")
+                candidates.append(clean)
+
+                if len(" ".join(candidates)) > 15:
+                    if clean.endswith((".", "!", "?", ":")):
                         break
-                    # Or if next line is empty/different, we likely have complete title
                     if i + 1 < len(lines):
-                        next_line = lines[i + 1].strip()
-                        # Stop if next line is empty or starts with lowercase (author names) or has @ (email)
-                        if not next_line or (next_line and next_line[0].islower()) or '@' in next_line:
-                            title_complete = True
-                            print(f"[TITLE EXTRACTION] Title complete (empty/author line)")
+                        nxt = lines[i + 1].strip()
+                        if not nxt or (nxt and nxt[0].islower()) or "@" in nxt:
                             break
-                        
-            elif in_title and not is_good_candidate:
-                # We were collecting title but now hit non-title content
-                print(f"[TITLE EXTRACTION] Stopped at non-title content: {clean[:50]}")
+            elif in_title:
                 break
 
-            # Stop if title is getting too long
-            if len(" ".join(title_candidates)) > 250:
-                print(f"[TITLE EXTRACTION] Title too long, stopping")
+            if len(" ".join(candidates)) > 250:
                 break
 
-        # Join and clean the title
-        title = " ".join(title_candidates).strip()
-        
-        # Final cleanup
-        title = re.sub(r'\s+', ' ', title)  # Normalize whitespace
-        title = re.sub(r'^[\W\d]+', '', title)  # Remove leading special chars/numbers
-        title = re.sub(r'[\W\d]+$', '', title)  # Remove trailing special chars/numbers
-        
-        # Fix common PDF extraction issues where words are joined
-        # Insert space before capital letters that follow lowercase (e.g., "testGap" -> "test Gap")
-        title = re.sub(r'([a-z])([A-Z])', r'\1 \2', title)
-        # Insert space when lowercase is followed by uppercase word (e.g., "theTRAIN" -> "the TRAIN")
-        title = re.sub(r'([a-z])([A-Z]{2,})', r'\1 \2', title)
-        
-        # If title is all caps, convert to title case for readability
+        title = " ".join(candidates).strip()
+        title = self._WHITESPACE_NORMALIZE_RE.sub(" ", title)
+        title = re.sub(r"^[\W\d]+", "", title)
+        title = re.sub(r"[\W\d]+$", "", title)
+
+        # Fix merged-word PDF artefacts (e.g. "testGap" → "test Gap")
+        title = self._CAMEL_SPLIT_RE.sub(r"\1 \2", title)
+        title = self._CAMEL_UPPER_RE.sub(r"\1 \2", title)
+
+        # Convert all-caps to title case, preserving short acronyms
         if title and title.isupper() and len(title) > 20:
-            # Convert all caps to title case, but preserve acronyms
-            words = title.split()
-            title_cased = []
-            for word in words:
-                # Keep short words (likely acronyms) in uppercase
-                if len(word) <= 3 and word.isupper():
-                    title_cased.append(word)
-                else:
-                    title_cased.append(word.capitalize())
-            title = ' '.join(title_cased)
-        
-        final_title = title if title and len(title) >= 10 else ""
-        print(f"[TITLE EXTRACTION] Final title: {final_title}")
-        
-        return final_title
+            title = " ".join(
+                w if len(w) <= 3 else w.capitalize()
+                for w in title.split()
+            )
 
-    def _extract_authors_and_affiliations(self, lines: List[str]) -> tuple[List[str], List[str]]:
-        """Extract authors and their affiliations."""
-        authors = []
-        affiliations = []
-        
-        # Look for author section (usually after title)
-        for i in range(min(20, len(lines))):
-            line = lines[i].strip()
-            
-            # Check for author patterns
+        result = title if title and len(title) >= 10 else ""
+        logger.debug(f"[PREPROCESS] Extracted title: {result!r}")
+        return result
+
+    def _extract_authors_and_affiliations(
+        self, lines: List[str]
+    ) -> Tuple[List[str], List[str]]:
+        """Extract authors and affiliations, preserving insertion order."""
+        authors_seen: Dict[str, None] = {}
+        affiliations_seen: Dict[str, None] = {}
+
+        for line in lines[:20]:
+            stripped = line.strip()
             for pattern in self.AUTHOR_PATTERNS:
-                matches = re.findall(pattern, line)
-                if matches:
-                    authors.extend(matches)
-            
-            # Look for affiliations
-            if any(keyword in line.lower() for keyword in ['university', 'institute', 'college', 'lab']):
-                affiliations.append(line)
-            
-            # Common delimiter for author section end
-            if 'abstract' in line.lower() or '1.' in line:
+                for match in pattern.findall(stripped):
+                    authors_seen.setdefault(match, None)
+
+            if any(kw in stripped.lower() for kw in ("university", "institute", "college", "lab")):
+                affiliations_seen.setdefault(stripped, None)
+
+            if "abstract" in stripped.lower() or re.match(r"^1\.", stripped):
                 break
-        
-        return list(set(authors)), list(set(affiliations))
-    
+
+        return list(authors_seen), list(affiliations_seen)
+
     def _extract_abstract(self, lines: List[str]) -> str:
-        """Extract abstract section."""
-        abstract_lines = []
-        in_abstract = False
         
+        abstract_lines: List[str] = []
+        in_abstract = False
+        char_count = 0
+        MAX_ABSTRACT_CHARS = 3000
+
         for line in lines:
-            line_stripped = line.strip()
-            
-            # Start of abstract
-            if re.match(r'^(Abstract|ABSTRACT|Summary)', line_stripped, re.IGNORECASE):
+            stripped = line.strip()
+
+            if re.match(r"^(Abstract|ABSTRACT|Summary)", stripped, re.IGNORECASE):
                 in_abstract = True
                 continue
-            
-            # End of abstract (next section or keywords)
+
             if in_abstract:
-                if (re.match(r'^(Keywords|KEYWORDS|1\.|Introduction)', line_stripped, re.IGNORECASE) or
-                    len(abstract_lines) > 500):  # Limit length
+                if re.match(r"^(Keywords|KEYWORDS|1\.|Introduction)", stripped, re.IGNORECASE):
                     break
-                if line_stripped:
-                    abstract_lines.append(line_stripped)
-        
-        return ' '.join(abstract_lines)
-    
+                if char_count >= MAX_ABSTRACT_CHARS:
+                    break
+                if stripped:
+                    abstract_lines.append(stripped)
+                    char_count += len(stripped)
+
+        return " ".join(abstract_lines)
+
     def _extract_keywords(self, lines: List[str]) -> List[str]:
-        """Extract keywords section."""
-        for i, line in enumerate(lines):
-            if re.search(r'Keywords?[:\s]', line, re.IGNORECASE):
-                # Extract text after "Keywords:"
-                keyword_text = re.split(r'Keywords?[:\s]+', line, flags=re.IGNORECASE)[-1]
-                # Split by common delimiters
-                keywords = re.split(r'[;,]', keyword_text)
-                return [k.strip() for k in keywords if k.strip()]
+        """Extract keywords from a 'Keywords:' line."""
+        for line in lines:
+            if re.search(r"Keywords?[:\s]", line, re.IGNORECASE):
+                keyword_text = re.split(r"Keywords?[:\s]+", line, flags=re.IGNORECASE)[-1]
+                return [k.strip() for k in re.split(r"[;,]", keyword_text) if k.strip()]
         return []
-    
+
     def _extract_publication_year(self, lines: List[str]) -> Optional[int]:
-        """Extract publication year."""
+        """Return the first 4-digit year found in the first 50 lines."""
         for line in lines[:50]:
-            year_match = re.search(r'\b(19|20)\d{2}\b', line)
-            if year_match:
+            m = self._YEAR_RE.search(line)
+            if m:
                 try:
-                    return int(year_match.group())
+                    return int(m.group())
                 except ValueError:
                     continue
         return None
-    
-    def chunk_document(self, doc_data: Dict[str, Any]) -> List[TextChunk]:
-        """
-        Create structured chunks from a document dictionary.
-        
-        Args:
-            doc_data: Dictionary containing 'content' and potentially 'title', 'paper_id'
-            
-        Returns:
-            List of TextChunk objects
-        """
-        text = doc_data.get('content', '')
-        # Try to get paper_id, fall back to title, then empty string
-        paper_id = doc_data.get('paper_id', doc_data.get('title', ""))
-        return self.chunk_text(text, paper_id)
 
-    def chunk_text(self, text: str, paper_id: str = "") -> List[TextChunk]:
-        """
-        Create structured chunks from paper text.
-        
-        Args:
-            text: Full text of the research paper
-            paper_id: Identifier for the paper
-            
-        Returns:
-            List of TextChunk objects
-        """
-        chunks = []
-        
-        # Extract metadata
-        metadata = self.extract_metadata(text)
-        
-        # Create metadata chunks
-        chunks.extend(self._create_metadata_chunks(metadata, paper_id))
-        
-        # Create content chunks by sections
-        content_chunks = self._create_content_chunks(text, paper_id)
-        chunks.extend(content_chunks)
-        
-        # Assign unique chunk IDs
-        for i, chunk in enumerate(chunks):
-            if not chunk.chunk_id:
-                # Use paper_id + index if available, else static prefix + uuid
-                prefix = paper_id if paper_id else "chunk"
-                # Clean prefix for valid ID (no spaces/special chars)
-                clean_prefix = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', prefix)
-                chunk.chunk_id = f"{clean_prefix}_{i}"
-        
-        return chunks
-    
-    def _create_metadata_chunks(self, metadata: PaperMetadata, paper_id: str) -> List[TextChunk]:
-        """Create chunks for paper metadata."""
-        metadata_chunks = []
+    # ──────────────────────────────────────────────────────
+    # Chunk construction
+    # ──────────────────────────────────────────────────────
 
-        # Title chunk (always store, even fallback)
-        title_text = metadata.title if metadata.title else "Title not detected from PDF"
+    def _create_metadata_chunks(
+        self, metadata: PaperMetadata, paper_id: str
+    ) -> List[TextChunk]:
+        chunks: List[TextChunk] = []
+        title_text = metadata.title or "Title not detected from PDF"
 
-        # Store title in multiple formats for better retrieval
-        metadata_chunks.append(TextChunk(
+        # Primary title chunk
+        chunks.append(TextChunk(
             text=f"Title: {title_text}",
             metadata={
                 "paper_id": paper_id,
@@ -387,146 +545,186 @@ class ResearchPaperChunker:
                 "is_metadata": True,
                 "section": "metadata",
                 "importance": "high",
-                "title": title_text  # Store title in metadata too
-            }
+                "title": title_text,
+            },
         ))
-        
-        # Add a separate chunk with just the title for direct matching
+
+        # Bare title for direct semantic matching
         if metadata.title:
-            metadata_chunks.append(TextChunk(
-                text=f"The title of this paper is: {title_text}. Paper title: {title_text}",
+            chunks.append(TextChunk(
+                text=title_text,
                 metadata={
                     "paper_id": paper_id,
                     "chunk_type": "title_reference",
                     "is_metadata": True,
                     "section": "metadata",
                     "importance": "high",
-                    "title": title_text
-                }
+                    "title": title_text,
+                },
             ))
 
-        
-        # Authors chunk
         if metadata.authors:
-            metadata_chunks.append(TextChunk(
+            chunks.append(TextChunk(
                 text=f"Authors: {', '.join(metadata.authors)}",
                 metadata={
                     "paper_id": paper_id,
                     "chunk_type": "authors",
                     "is_metadata": True,
                     "section": "metadata",
-                    "author_count": len(metadata.authors)
-                }
+                    "author_count": len(metadata.authors),
+                },
             ))
-        
-        # Abstract chunk (split if too long)
+
         if metadata.abstract:
-            abstract_chunks = self.text_splitter.split_text(metadata.abstract)
-            for i, chunk in enumerate(abstract_chunks):
-                metadata_chunks.append(TextChunk(
-                    text=f"Abstract (Part {i+1}/{len(abstract_chunks)}): {chunk}",
+            abstract_parts = self.text_splitter.split_text(metadata.abstract)
+            total = len(abstract_parts)
+            for i, part in enumerate(abstract_parts):
+                chunks.append(TextChunk(
+                    text=f"Abstract (Part {i + 1}/{total}): {part}",
                     metadata={
                         "paper_id": paper_id,
                         "chunk_type": "abstract",
                         "is_metadata": True,
                         "section": "metadata",
-                        "part": i+1,
-                        "total_parts": len(abstract_chunks)
-                    }
+                        "part": i + 1,
+                        "total_parts": total,
+                    },
                 ))
-        
-        return metadata_chunks
-    
-    def _create_content_chunks(self, text: str, paper_id: str) -> List[TextChunk]:
-        """Create chunks for paper content by sections."""
-        chunks = []
-        lines = text.split('\n')
-        
-        current_section = "introduction"
-        current_content = []
-        section_start = 0
-        
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            
-            # Check for section headers
-            detected_section = self._detect_section(line_stripped)
-            
-            if detected_section and i > section_start + 5:  # Minimum content length
-                # Save current section
-                if current_content:
-                    section_text = '\n'.join(current_content)
-                    section_chunks = self._split_section_text(section_text, paper_id, current_section)
-                    chunks.extend(section_chunks)
-                
-                # Start new section
-                current_section = detected_section
-                current_content = [line_stripped]
-                section_start = i
-            else:
-                current_content.append(line_stripped)
-        
-        # Add final section
-        if current_content:
-            section_text = '\n'.join(current_content)
-            section_chunks = self._split_section_text(section_text, paper_id, current_section)
-            chunks.extend(section_chunks)
-        
+
         return chunks
-    
+
+    def _create_content_chunks(self, text: str, paper_id: str) -> List[TextChunk]:
+        """Split document body into section-aware, page-tracked chunks."""
+        chunks: List[TextChunk] = []
+        lines = text.split("\n")
+
+        current_section = "introduction"
+        current_content: List[str] = []
+        current_page = 1
+        section_start = 0
+        section_pages: set = {1}
+
+        def _flush(section: str, content: List[str], pages: set) -> List[TextChunk]:
+            if not content:
+                return []
+            return self._split_section_text(
+                "\n".join(content), paper_id, section, pages
+            )
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+
+            # Update page counter
+            pm = self._PAGE_MARKER_RE.match(stripped)
+            if pm:
+                current_page = int(pm.group(1))
+                section_pages.add(current_page)
+                continue
+
+            detected = self._detect_section(stripped)
+            if detected and i > section_start + 5:
+                chunks.extend(_flush(current_section, current_content, section_pages))
+                current_section = detected
+                current_content = [stripped]
+                section_pages = {current_page}
+                section_start = i
+            elif stripped:
+                current_content.append(stripped)
+                section_pages.add(current_page)
+
+        chunks.extend(_flush(current_section, current_content, section_pages))
+        return chunks
+
     def _detect_section(self, line: str) -> Optional[str]:
-        """Detect if a line is a section header."""
-        for section_name, patterns in self.SECTION_HEADERS.items():
-            for pattern in patterns:
-                if re.match(pattern, line, re.IGNORECASE):
-                    return section_name
+        """Return section name if line matches a known section header."""
+        for sec_name, patterns in self._SECTION_PATTERNS.items():
+            for pat in patterns:
+                if pat.match(line):
+                    return sec_name
         return None
-    
-    def _split_section_text(self, text: str, paper_id: str, section_name: str) -> List[TextChunk]:
-        """Split section text into appropriately sized chunks."""
-        chunks = []
-        text_chunks = self.text_splitter.split_text(text)
-        
-        for i, chunk_text in enumerate(text_chunks):
-            chunks.append(TextChunk(
-                text=chunk_text,
+
+    def _split_section_text(
+        self,
+        text: str,
+        paper_id: str,
+        section_name: str,
+        pages: set,
+    ) -> List[TextChunk]:
+        """Split section text into sized chunks with page-range metadata."""
+        text = re.sub(r"\[PAGE\s+\d+\]", "", text).strip()
+        if not text:
+            return []
+
+        raw_chunks = self.text_splitter.split_text(text)
+        page_start = min(pages) if pages else 0
+        page_end = max(pages) if pages else 0
+        total = len(raw_chunks)
+
+        return [
+            TextChunk(
+                text=chunk.strip(),
                 metadata={
                     "paper_id": paper_id,
                     "chunk_type": "content",
                     "is_metadata": False,
                     "section": section_name,
-                    "chunk_index": i,
-                    "total_chunks": len(text_chunks)
-                }
-            ))
-        
-        return chunks
+                    "chunk_index": idx,
+                    "total_chunks": total,
+                    "page_start": page_start,
+                    "page_end": page_end,
+                },
+            )
+            for idx, chunk in enumerate(raw_chunks)
+            if chunk.strip()
+        ]
 
-# For backward compatibility
+
+# ─────────────────────────────────────────────────────────────
+# Convenience batch entry-points
+# ─────────────────────────────────────────────────────────────
+
+def batch_chunk_documents(
+    documents: List[Dict[str, Any]],
+    max_workers: int = 4,
+    chunk_size: int = 1000,
+    overlap: int = 150,
+) -> List[Dict[str, Any]]:
+    
+    chunker = ResearchPaperChunker(chunk_size=chunk_size, overlap=overlap)
+    return chunker.batch_process_documents(documents, max_workers=max_workers)
+
+
+def batch_chunk_documents_async(
+    documents: List[Dict[str, Any]],
+    max_workers: int = 4,
+) -> List[Dict[str, Any]]:
+  
+    chunker = ResearchPaperChunker()
+    return asyncio.run(
+        chunker.batch_process_with_llm_async(documents, max_workers=max_workers)
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Backward-compatible helpers
+# ─────────────────────────────────────────────────────────────
+
 def clean_text(text: str) -> str:
-    """Basic text cleaning for preprocessing."""
+    """Basic text cleaning (backward compat)."""
     if not text:
         return ""
-    
-    # Remove excessive whitespace
-    text = re.sub(r'\s+', ' ', text)
-    
-    # Remove null bytes and control characters
-    text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f]', '', text)
-    
-    # Strip leading/trailing whitespace
-    text = text.strip()
-    
-    return text
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f]", "", text)
+    return text.strip()
+
 
 def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> List[str]:
-    """Legacy function for simple chunking."""
+    """Legacy: simple chunking, returns list of strings."""
     chunker = ResearchPaperChunker(chunk_size=chunk_size, overlap=overlap)
-    chunks = chunker.chunk_text(text)
-    return [chunk.text for chunk in chunks]
+    return [c.text for c in chunker.chunk_text(text)]
+
 
 def chunk_text_with_metadata(text: str, paper_id: str = "") -> List[Dict[str, Any]]:
-    """Legacy function returning dictionary format."""
+    """Legacy: returns list of {'text': ..., 'metadata': ...} dicts."""
     chunker = ResearchPaperChunker()
-    chunks = chunker.chunk_text(text, paper_id)
-    return [{"text": chunk.text, "metadata": chunk.metadata} for chunk in chunks]
+    return [{"text": c.text, "metadata": c.metadata} for c in chunker.chunk_text(text, paper_id)]

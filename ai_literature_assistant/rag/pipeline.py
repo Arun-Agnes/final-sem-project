@@ -53,16 +53,39 @@ class RAGPipeline:
         filter_by: Optional[Dict] = None,
         include_sources: bool = True,
         generate_response: bool = True,
+        search_mode: str = "Semantic",
+        alpha: float = 1.0,
     ) -> Dict:
 
         print(f"\nProcessing query: {question}")
-
-        retrieval_results = self.retriever.retrieve(
-            query=question,
-            n_results=n_retrieve,
-            filter_by=filter_by,
-            include_metadata=True,
-        )
+        
+        # --- QUERY ROUTING ---
+        # Detect if user wants to list papers (Catalog Query)
+        low_q = question.lower().strip().rstrip('?')
+        catalog_keywords = [
+            "list papers", "all papers", "list all papers", "what papers", "show papers", 
+            "titles", "list of papers", "available papers", "title of the papers", 
+            "titles of the papers", "paper titles", "list titles"
+        ]
+        
+        is_catalog_query = any(keyword in low_q for keyword in catalog_keywords) or low_q == "papers"
+        
+        if is_catalog_query:
+            print(f"Detecting catalog query: '{question}'. Routing to metadata retrieval.")
+            # Retrieve all title references
+            retrieval_results = self.retriever.retrieve_by_metadata(
+                where={"chunk_type": "title_reference"},
+                n_results=50 
+            )
+        else:
+            # Standard Semantic Search
+            retrieval_results = self.retriever.retrieve(
+                query=question,
+                n_results=n_retrieve,
+                filter_by=filter_by,
+                include_metadata=True,
+            )
+        # ---------------------
 
         if retrieval_results.get("error"):
             return {
@@ -113,7 +136,7 @@ class RAGPipeline:
                 src = {
                     "id": doc["id"],
                     "similarity": f"{doc['similarity_score']:.1%}",
-                    "content_preview": doc["content"][:200] + "...",
+                    "content_preview": doc["content"][:300] + "...",
                 }
 
                 if doc.get("metadata"):
@@ -123,6 +146,10 @@ class RAGPipeline:
                         "paper_id": m.get("paper_id", "unknown"),
                         "section": m.get("section", "unknown"),
                         "source": m.get("source", "unknown"),
+                        "page_start": m.get("page_start", 0),
+                        "page_end": m.get("page_end", 0),
+                        "image_path": m.get("image_path", ""),
+                        "image_hash": m.get("image_hash", ""),
                     }
 
                 sources.append(src)
