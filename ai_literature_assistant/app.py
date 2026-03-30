@@ -544,8 +544,44 @@ with st.sidebar:
                         os.makedirs(CHROMA_DIR, exist_ok=True)
                 except Exception as e:
                     logger.error(f"Failed to clear ChromaDB: {e}")
-                
+
+                # 4) Clear PostgreSQL research papers metadata
+                try:
+                    from database import SessionLocal, init_db
+                    from db.models import ResearchPaperMetadata
+                    
+                    db = SessionLocal()
+                    try:
+                        # Delete all records from research_papers_metadata table
+                        db.query(ResearchPaperMetadata).delete()
+                        db.commit()
+                        logger.info("Cleared PostgreSQL research papers metadata")
+                    except Exception as e:
+                        logger.error(f"Failed to clear PostgreSQL metadata: {e}")
+                        db.rollback()
+                    finally:
+                        db.close()
+                except Exception as e:
+                    logger.error(f"Failed to connect to PostgreSQL for clearing: {e}")
+
+                # 5) Clear uploaded files cache
+                st.session_state.pop('_uploaded_file_data', None)
+                st.session_state.pop('_uploaded_file_objects', None)
+
+                # 6) Clear extracted images
+                try:
+                    images_dir = os.path.join(os.path.dirname(__file__), "data", "images")
+                    if os.path.exists(images_dir):
+                        shutil.rmtree(images_dir)
+                        os.makedirs(images_dir, exist_ok=True)
+                except Exception as e:
+                    logger.error(f"Failed to clear extracted images: {e}")
+
+                # 7) Reset to chat tab
                 st.session_state.current_tab = "chat"
+                st.session_state.is_history_view = False
+                
+                st.success("✅ Knowledge base reset successfully! All data cleared.")
                 st.rerun()
 
     else:
@@ -811,24 +847,44 @@ if st.session_state.current_tab == "chat":
 elif st.session_state.current_tab == "documents":
     st.subheader("Document Library")
 
-    if st.session_state.doc_manager.get_document_count() > 0:
-        # Convert DataFrame to list of dicts for iteration
-        df_docs = st.session_state.doc_manager.get_all_documents()
-        docs = df_docs.to_dict('records')
-        
-        for doc in docs:
-            doc_name = doc.get('name', 'Unknown Document')
-            with st.expander(doc_name):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write("**Uploaded:**", doc.get('upload_time', 'Unknown'))
-                    st.write("**Status:**", doc.get('status', 'Unknown'))
-                with col2:
-                    st.write("**Chunks:**", doc.get('num_chunks', 0))
-                    st.write("**Size:**", f"{doc.get('size_mb', 0)} MB")
-    else:
-        st.info("No documents uploaded yet. Go to Chat tab to upload PDFs.")
+    db = ResearchSessionLocal()
 
+    try:
+        papers = db.query(ResearchPaperMetadata).all()
+
+        if not papers:
+            st.info("No documents uploaded yet. Go to Chat tab to upload PDFs.")
+        else:
+            for p in papers:
+                title = p.title or p.file_name or "Unknown paper"
+
+                with st.expander(title):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write("**Year:**", p.year)
+                        st.write("**Domain:**", p.domain)
+                        st.write("**Authors:**", p.authors)
+
+                    with col2:
+                        st.write("**Dataset:**", p.dataset)
+                        st.write("**Methodology:**", p.methodology)
+                        st.write("**Evaluation:**", p.evaluation_metrics)
+
+                    st.markdown("**Research Problem**")
+                    st.write(p.research_problem)
+
+                    st.markdown("**Key Results**")
+                    st.write(p.key_results)
+
+                    st.markdown("**Limitations**")
+                    st.write(p.limitations)
+
+                    st.markdown("**Future Work**")
+                    st.write(p.future_work)
+
+    finally:
+        db.close()
 
 # ==================== COMPARE TAB ====================
 elif st.session_state.current_tab == "compare":

@@ -1682,3 +1682,11 @@ button[data-testid="stBaseButton-primary"][key="ai_comparison_btn"]:focus {
 span.st-co {
     background-color: white !important;
 }
+
+.st-c3{
+    background-color: transparent !important;
+}
+
+ul.st-df {
+    background-color: white !important;
+}
